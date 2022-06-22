@@ -8,10 +8,10 @@
             "name": "PPO",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/algos/ppo/main.py",
+            "program": "${workspaceFolder}/run.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--seed", "0", "--exp-name", "exp1", "--epochs", "10"],
+            "args": ["--command", "train", "--seed", "0", "--exp-name", "exp1", "--epochs", "10"],
             "cwd": "${workspaceFolder}/algos/ppo"
         }
     ]

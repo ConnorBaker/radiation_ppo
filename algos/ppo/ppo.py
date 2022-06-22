@@ -8,8 +8,17 @@ import torch
 from torch.optim import Adam
 import torch.nn.functional as F
 import time
-import core
-from epoch_logger import EpochLogger
+
+try:
+    import core
+except:
+    import algos.ppo.core as core
+
+try:
+    from epoch_logger import EpochLogger
+except:
+    from algos.ppo.epoch_logger import EpochLogger
+
 
 
 class BpArgs(NamedTuple):

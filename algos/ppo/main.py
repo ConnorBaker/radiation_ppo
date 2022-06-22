@@ -6,10 +6,18 @@ import numpy as np
 import numpy.random as npr
 
 from gym.utils.seeding import _int_list_from_bigint, hash_seed  # type: ignore
-
-import core
-from epoch_logger import setup_logger_kwargs, EpochLogger
-import ppo
+try:
+    import core
+except:
+    import algos.ppo.core as core
+try:
+    from epoch_logger import setup_logger_kwargs, EpochLogger
+except:
+    from algos.ppo.epoch_logger import setup_logger_kwargs, EpochLogger
+try:
+    import ppo
+except:
+    import algos.ppo.ppo as ppo
 from gym_rad_search.envs import RadSearch  # type: ignore
 
 
@@ -31,10 +39,17 @@ class CliArgs:
     obstruct: Literal[-1, 0, 1]
     net_type: str
     alpha: float
+    tuning: bool
 
 
-def parse_args(parser: argparse.ArgumentParser) -> CliArgs:
-    args = parser.parse_args()
+def parse_args(parser: argparse.ArgumentParser, rawArgs=None) -> CliArgs:
+    if rawArgs:
+        args = parser.parse_args(rawArgs)
+    else:
+        args, unknown_args = parser.parse_known_args()
+        if unknown_args:
+            print(f'Warning - Unkown Arguments: {unknown_args}')
+            
     return CliArgs(
         hid_gru=args.hid_gru,
         hid_pol=args.hid_pol,
@@ -52,6 +67,7 @@ def parse_args(parser: argparse.ArgumentParser) -> CliArgs:
         obstruct=args.obstruct,
         net_type=args.net_type,
         alpha=args.alpha,
+        tuning=args.tuning
     )
 
 
@@ -128,13 +144,19 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--alpha", type=float, default=0.1, help="Entropy reward term scaling"
     )
+    parser.add_argument(
+        "--tuning", type=bool, default=False, help="Choose 'True' if hyperparameter tuning is taking place, option: True, False"
+    )
     return parser
 
 
-if __name__ == "__main__":
-    args = parse_args(create_parser())
+def main(args=None):
+    if args:
+        args = parse_args(create_parser(), args)
+    else:
+        args = parse_args(create_parser())
 
-    # Change mini-batch size, only been tested with size of 1
+# Change mini-batch size, only been tested with size of 1
     batch_s: int = 1
 
     # Save directory and experiment name
@@ -176,7 +198,7 @@ if __name__ == "__main__":
     )
 
     # Run ppo training function
-    ppo = ppo.PPO(
+    return ppo.PPO(
         env=env,
         actor_critic=core.RNNModelActorCritic,
         logger=logger,
@@ -196,3 +218,7 @@ if __name__ == "__main__":
         render=False,
         save_gif=False,
     )
+
+
+if __name__ == "__main__":
+    main()  
