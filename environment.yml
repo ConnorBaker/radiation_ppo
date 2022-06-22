@@ -13,4 +13,5 @@ dependencies:
   - swig
   - pip
   - pip:
+      - ray[tune]
       - -e ./gym_rad_search

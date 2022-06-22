@@ -10,10 +10,7 @@ The obstructions (gray rectangles) block line of sight between the detector and 
 
 It is recommended to use the Anaconda package manager.
 
-1. After cloning this repository, create a virtual environment with the required packages
-   `conda env create -f environment.yml`.
-   Then activate this environment with `conda activate ppo_rad`.
-   The radiation_ppo code requires [OpenMPI](https://www.open-mpi.org/software/ompi/v4.1/) for parallel processing.
+1. After cloning this repository, create a virtual environment with the required packages `conda env create -f environment.yml`. Then activate this environment with `conda activate ppo_rad`. The radiation_ppo code requires [OpenMPI](https://www.open-mpi.org/software/ompi/v4.1/) for parallel processing.
 
 ## Files
 
@@ -31,3 +28,31 @@ It is recommended to use the Anaconda package manager.
 2. Test the model using `test_policy.py`, any model changes made to `/ppo/core.py` must also be made in `/eval/core.py`
    - Trained model parameters must be specified by user in the `ac_kwargs` dictionary, line 531 in `test_policy.py`
    - See argument help for more details
+
+## Tuning
+
+Setup SSH Keys: To avoid getting the password prompt when running private clusters make sure to setup your ssh keys on the private cluster as follows:
+
+        ssh-keygen
+
+        cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
+
+### AWS Configurations:
+
+Follow [instructions detailed here](https://docs.ray.io/en/latest/cluster/cloud.html#cluster-private-setup) for launching on AWS. See [AWS Configurations](https://docs.ray.io/en/latest/cluster/aws-tips.html#aws-cluster) for recipes on customizing AWS clusters.
+
+### Local On Premise Cluster:
+
+#### Set Up Cluster
+
+1.  Create cluster_config.yml from example-full.yml. Be sure to specify the proper head_ip, list of worker_ips, and the ssh_user field.
+
+2.  Create or update the cluster. When the command finishes, it will print out the command that can be used to get a remote shell into the head node.
+
+        ray up tuning/cluster_config.yml
+
+3.  Add `import ray` and `ray.init(address="auto")` to program file.
+
+4.  Tear down the cluster
+
+        ray down tuning/cluster_config.yml

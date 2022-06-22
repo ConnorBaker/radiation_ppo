@@ -1,3 +1,6 @@
+# Tuning
+tuning/*.yml
+
 # Models
 models/
 
