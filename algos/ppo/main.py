@@ -1,11 +1,10 @@
 import argparse
 from dataclasses import dataclass
-from typing import Literal
-
+from typing import List, Literal
 import numpy as np
 import numpy.random as npr
-
 from gym.utils.seeding import _int_list_from_bigint, hash_seed  # type: ignore
+from gym_rad_search.envs import RadSearch  # type: ignore
 try:
     import core
 except:
@@ -18,7 +17,6 @@ try:
     import ppo
 except:
     import algos.ppo.ppo as ppo
-from gym_rad_search.envs import RadSearch  # type: ignore
 
 
 @dataclass
@@ -42,13 +40,13 @@ class CliArgs:
     tuning: bool
 
 
-def parse_args(parser: argparse.ArgumentParser, rawArgs=None) -> CliArgs:
+def parse_args(parser: argparse.ArgumentParser, rawArgs: list = None) -> CliArgs:
     if rawArgs:
         args = parser.parse_args(rawArgs)
     else:
         args, unknown_args = parser.parse_known_args()
         if unknown_args:
-            print(f'Warning - Unkown Arguments: {unknown_args}')
+            print(f"Warning - Unkown Arguments: {unknown_args}")
             
     return CliArgs(
         hid_gru=args.hid_gru,
@@ -150,13 +148,13 @@ def create_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(args=None):
+def main(args: list = None):
     if args:
         args = parse_args(create_parser(), args)
     else:
         args = parse_args(create_parser())
 
-# Change mini-batch size, only been tested with size of 1
+    # Change mini-batch size, only been tested with size of 1
     batch_s: int = 1
 
     # Save directory and experiment name

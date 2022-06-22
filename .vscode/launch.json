@@ -11,7 +11,7 @@
             "program": "${workspaceFolder}/run.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--command", "train", "--seed", "0", "--exp-name", "exp1", "--epochs", "10"],
+            "args": ["--command", "tune", "--seed", "0", "--exp-name", "exp1", "--epochs", "10"],
             "cwd": "${workspaceFolder}/algos/ppo"
         }
     ]
