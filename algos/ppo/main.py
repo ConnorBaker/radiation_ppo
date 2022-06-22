@@ -38,6 +38,7 @@ class CliArgs:
     net_type: str
     alpha: float
     tuning: bool
+    model_dir: str
 
 
 def parse_args(parser: argparse.ArgumentParser, rawArgs: list = None) -> CliArgs:
@@ -65,7 +66,8 @@ def parse_args(parser: argparse.ArgumentParser, rawArgs: list = None) -> CliArgs
         obstruct=args.obstruct,
         net_type=args.net_type,
         alpha=args.alpha,
-        tuning=args.tuning
+        tuning=args.tuning,
+        model_dir=args.model_dir
     )
 
 
@@ -145,14 +147,14 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--tuning", type=bool, default=False, help="Choose 'True' if hyperparameter tuning is taking place, option: True, False"
     )
+    parser.add_argument(
+        "--model_dir", type=str, default="models/train", help="Folder to save models to (default: ./models/train)"
+    )
     return parser
 
 
 def main(args: list = None):
-    if args:
-        args = parse_args(create_parser(), args)
-    else:
-        args = parse_args(create_parser())
+    args = parse_args(create_parser(), args) if args else parse_args(create_parser())
 
     # Change mini-batch size, only been tested with size of 1
     batch_s: int = 1
@@ -180,7 +182,7 @@ def main(args: list = None):
 
     dim_length, dim_height = args.dims
     logger_kwargs = setup_logger_kwargs(
-        exp_name, args.seed, data_dir="../../models/train", env_name=env_name
+        exp_name, args.seed, data_dir=args.model_dir, env_name=env_name
     )
     # Set up logger and save configuration
     logger = EpochLogger(**logger_kwargs)
