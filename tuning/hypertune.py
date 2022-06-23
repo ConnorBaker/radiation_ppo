@@ -11,6 +11,9 @@ from algos.ppo.epoch_logger import setup_logger_kwargs, EpochLogger
 from gym_rad_search.envs import RadSearch  # type: ignore
 import ray
 from ray import tune
+from ray.tune.schedulers import AsyncHyperBandScheduler
+from ray.tune.utils import validate_save_restore
+import os
 import sys
 
 @dataclass
@@ -120,6 +123,7 @@ def generate_env_args() -> EnvArgs:
     # Save directory and experiment name
     model_dir: str = "models/train"
     model_title: str = "tuning"
+    id = os.getpid()
     exp_name: str = (
         "loc"
         + str(baseline['hid_rec'])
@@ -133,6 +137,7 @@ def generate_env_args() -> EnvArgs:
         + baseline['exp_name']
         + f"_ep{baseline['epochs']}"
         + f"_steps{baseline['steps_per_epoch']}"
+        + f"_id{id}"
     )
 
     return EnvArgs(
@@ -154,7 +159,11 @@ def create_search_space(args: EnvArgs) -> EnvArgs:
     return args
 
 
-def objective(config):
+def objective(config, checkpoint_dir=None):
+    # Mute stdout for thread
+    stdout_save = sys.stdout
+    sys.stdout = open('/dev/null', 'w')
+
     # Generate a large random seed and random generator object for reproducibility
     robust_seed = _int_list_from_bigint(hash_seed(config['seed']))[0]
     rng = npr.default_rng(robust_seed)
@@ -177,11 +186,7 @@ def objective(config):
         np_random=rng,
     )
 
-    # Mute stdout for thread
-    # stdout_save = sys.stdout
-    # sys.stdout = open('/dev/null', 'w')
-
-    episode_length = ppo.PPO(
+    model = ppo.PPO(
         env=env,
         actor_critic=core.RNNModelActorCritic,
         logger=logger,
@@ -202,10 +207,11 @@ def objective(config):
         save_gif=config['save_gif'],
         tuning=config['tuning']
     )
-    # # Reset stdout
-    # sys.stdout = stdout_save
 
-    tune.report(mean_loss=episode_length)
+    # Reset stdout
+    sys.stdout = stdout_save
+
+    tune.report(fitness=model.fitness)
 
 
 def main(args: list = None):
@@ -215,24 +221,35 @@ def main(args: list = None):
     args = parse_args(create_parser(), args) if args else parse_args(create_parser())
     search_space = create_search_space(generate_env_args())
 
-    # Test compute cluster
-    # print('Testing compute cluster...')
-    # start = time.time()
-    #test_cluster()
-    # taken = time.time() - start
-    # print(f"Cluster Test Time: {taken:.2f} seconds.")
-
     # Run ppo training function
     print('\n~~~Beginning training...~~~')
     start = time.time()
     # DEBUG
-    #objective(config=search_space)
+    objective(config=search_space)
 
-    analysis = tune.run(objective, config=search_space, num_samples=10)
+    # AsyncHyperBand enables aggressive early stopping of bad trials.
+    scheduler = AsyncHyperBandScheduler(
+        grace_period=5,
+        metric='fitness',
+        mode='max',
+        reduction_factor=3,
+        brackets=1,
+        stop_last_trials=False,
+        )
+
+    # Begin tuning
+    analysis = tune.run(
+        objective, 
+        config=search_space, 
+        scheduler=scheduler, 
+        checkpoint_freq=1, 
+        num_samples=10,
+        )
+
     taken = time.time() - start
     print(f"Time: {taken:.2f} seconds.")
-    print("Best hyperparameters found were: ", analysis.get_best_config(metric="mean_loss", mode="min"))
-    print("Best result: ", analysis.get_best_trial(metric="mean_loss", mode="min"))
+    print("Best hyperparameters found were: ", analysis.get_best_config(metric="fitness", mode="max"))
+    print("Best result: ", analysis.get_best_trial(metric="fitness", mode="max"))
 
     return
 

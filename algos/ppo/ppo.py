@@ -1,3 +1,4 @@
+from cgitb import reset
 from dataclasses import dataclass, field
 from typing import Any, NamedTuple, Type
 from gym_rad_search.envs import rad_search_env  # type: ignore
@@ -8,7 +9,8 @@ import torch
 from torch.optim import Adam
 import torch.nn.functional as F
 import time
-
+from io import StringIO 
+import sys
 try:
     import core
 except:
@@ -240,7 +242,7 @@ class PPO:
         target_kl: float = 0.07,
         save_freq: int = 500,
         render: bool = False,
-        tuning=False,
+        tuning: bool =False,
     ) -> None:
         """
         Proximal Policy Optimization (by clipping),
@@ -512,26 +514,40 @@ class PPO:
                 reduce_v_iters = False
 
             # Perform PPO update!
-            self.update(env, bp_args)
+            # DEBUG - Remove
+            try:
+                self.update(env, bp_args)
+            except:
+                print("ERROR IN UPDATE!")
 
-            # Log info about epoch
-            self.logger.log_tabular("Epoch", epoch)
-            self.logger.log_tabular("EpRet", with_min_and_max=True)
-            self.logger.log_tabular("EpLen", average_only=True)
-            self.logger.log_tabular("VVals", with_min_and_max=True)
-            self.logger.log_tabular("TotalEnvInteracts", (epoch + 1) * steps_per_epoch)
-            self.logger.log_tabular("LossPi", average_only=True)
-            self.logger.log_tabular("LossV", average_only=True)
-            self.logger.log_tabular("LossModel", average_only=True)
-            self.logger.log_tabular("LocLoss", average_only=True)
-            self.logger.log_tabular("Entropy", average_only=True)
-            self.logger.log_tabular("KL", average_only=True)
-            self.logger.log_tabular("ClipFrac", average_only=True)
-            self.logger.log_tabular("DoneCount", sum_only=True)
-            self.logger.log_tabular("OutOfBound", average_only=True)
-            self.logger.log_tabular("StopIter", average_only=True)
-            self.logger.log_tabular("Time", time.time() - start_time)
-            self.logger.dump_tabular()
+            if tuning:
+                self.fitness = self.calculate_fitness(
+                    logger.epoch_dict["EpLen"], logger.epoch_dict["LossPi"], logger.epoch_dict["LossV"], 
+                    logger.epoch_dict["LossModel"], logger.epoch_dict["Entropy"], logger.epoch_dict["DoneCount"]
+                )
+                #yield {'fitness': self.fitness} # This sends the score to Ray Tune. TODO Unable to return a generator in init
+            else:
+                # Log info about epoch
+                self.logger.log_tabular("Epoch", epoch)
+                self.logger.log_tabular("EpRet", with_min_and_max=True)
+                self.logger.log_tabular("EpLen", average_only=True)
+                self.logger.log_tabular("VVals", with_min_and_max=True)
+                self.logger.log_tabular("TotalEnvInteracts", (epoch + 1) * steps_per_epoch)
+                self.logger.log_tabular("LossPi", average_only=True)
+                self.logger.log_tabular("LossV", average_only=True)
+                self.logger.log_tabular("LossModel", average_only=True)
+                self.logger.log_tabular("LocLoss", average_only=True)
+                self.logger.log_tabular("Entropy", average_only=True)
+                self.logger.log_tabular("KL", average_only=True)
+                self.logger.log_tabular("ClipFrac", average_only=True)
+                self.logger.log_tabular("DoneCount", sum_only=True)
+                self.logger.log_tabular("OutOfBound", average_only=True)
+                self.logger.log_tabular("StopIter", average_only=True)
+                self.logger.log_tabular("Time", time.time() - start_time)
+                self.logger.dump_tabular()
+
+    def calculate_fitness(self, EpLen, LossPi, LossV, LossModel, Entropy, DoneCount):
+        return np.sum([1-np.mean(EpLen), 1-LossPi[-1], 1-LossV[-1], 1-LossModel[-1], DoneCount[-1]]) # TODO make a better fitness function; if entropy drops early, convergance likely to a bad policy
 
     def update_a2c(
         self, data: dict[str, torch.Tensor], env: RadSearch, minibatch: int, iter: int
