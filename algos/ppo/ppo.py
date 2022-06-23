@@ -240,6 +240,7 @@ class PPO:
         target_kl: float = 0.07,
         save_freq: int = 500,
         render: bool = False,
+        tuning=False,
     ) -> None:
         """
         Proximal Policy Optimization (by clipping),
