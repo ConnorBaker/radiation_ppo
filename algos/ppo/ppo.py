@@ -348,13 +348,24 @@ class PPO:
                 the current policy and value function.
 
         """
+        
+        # Set args
+        self.epochs = epochs
+        self.steps_per_epoch = steps_per_epoch
+        self.max_ep_len = max_ep_len
+        self.save_freq = save_freq
+        self.render = render
+        self.save_gif_freq = save_gif_freq
+        self.save_gif = save_gif
+        self.tuning = tuning
+        
         # Set Pytorch random seed
         torch.manual_seed(seed)
 
         # Instantiate environment
+        self.env = env
         ac_kwargs["seed"] = seed
         ac_kwargs["pad_dim"] = 2
-
         obs_dim: int = env.observation_space.shape[0]
         act_dim: int = rad_search_env.A_SIZE
 
@@ -362,7 +373,7 @@ class PPO:
         self.ac = actor_critic(obs_dim, act_dim, **ac_kwargs)
 
         # PFGRU args, from Ma et al. 2020
-        bp_args = BpArgs(
+        self.bp_args = BpArgs(
             bp_decay=0.1,
             l2_weight=1.0,
             l1_weight=0.0,
@@ -406,9 +417,10 @@ class PPO:
         # Set up model saving
         self.logger.setup_pytorch_saver(self.ac)
 
+    def train(self) -> float:
         # Prepare for interaction with environment
         start_time = time.time()
-        o, ep_ret, ep_len, done_count, a = env.reset(), 0, 0, 0, -1
+        o, ep_ret, ep_len, done_count, a = self.env.reset(), 0, 0, 0, -1
         stat_buff = core.StatBuff()
         stat_buff.update(o[0])
         ep_ret_ls = []
@@ -417,23 +429,23 @@ class PPO:
         self.ac.model.eval()
         # Main loop: collect experience in env and update/log each epoch
         print(f"Starting main training loop!", flush=True)
-        for epoch in range(epochs):
+        for epoch in range(self.epochs):
             # Reset hidden state
             hidden = self.ac.reset_hidden()
             self.ac.pi.logits_net.v_net.eval()
-            for t in range(steps_per_epoch):
+            for t in range(self.steps_per_epoch):
                 # Standardize input using running statistics per episode
                 obs_std = o
                 obs_std[0] = np.clip((o[0] - stat_buff.mu) / stat_buff.sig_obs, -8, 8)
                 # compute action and logp (Actor), compute value (Critic)
                 a, v, logp, hidden, out_pred = self.ac.step(obs_std, hidden=hidden)
-                next_o, r, d, _ = env.step(a)
+                next_o, r, d, _ = self.env.step(a)
                 ep_ret += r
                 ep_len += 1
                 ep_ret_ls.append(ep_ret)
 
-                self.buf.store(obs_std, a, r, v, logp, env.src_coords)
-                logger.store(VVals=v)
+                self.buf.store(obs_std, a, r, v, logp, self.env.src_coords)
+                self.logger.store(VVals=v)
 
                 # Update obs (critical!)
                 o = next_o
@@ -441,14 +453,14 @@ class PPO:
                 # Update running mean and std
                 stat_buff.update(o[0])
 
-                timeout = ep_len == max_ep_len
+                timeout = ep_len == self.max_ep_len
                 terminal = d or timeout
-                epoch_ended = t == steps_per_epoch - 1
+                epoch_ended = t == self.steps_per_epoch - 1
 
                 if terminal or epoch_ended:
                     if d and not timeout:
                         done_count += 1
-                    if env.oob:
+                    if self.env.oob:
                         # Log if agent went out of bounds
                         oob += 1
                     if epoch_ended and not (terminal):
@@ -465,47 +477,47 @@ class PPO:
                         _, v, _, _, _ = self.ac.step(obs_std, hidden=hidden)
                         if epoch_ended:
                             # Set flag to sample new environment parameters
-                            env.epoch_end = True
+                            self.env.epoch_end = True
                     else:
                         v = 0
                     self.buf.finish_path(v)
                     if terminal:
                         # only save EpRet / EpLen if trajectory finished
-                        logger.store(EpRet=ep_ret, EpLen=ep_len)
+                        self.logger.store(EpRet=ep_ret, EpLen=ep_len)
 
                     if (
                         epoch_ended
-                        and render
-                        and (epoch % save_gif_freq == 0 or ((epoch + 1) == epochs))
+                        and self.render
+                        and (epoch % self.save_gif_freq == 0 or ((epoch + 1) == self.epochs))
                     ):
                         # Check agent progress during training
                         if epoch != 0:
-                            env.render(
-                                save_gif=save_gif,
-                                path=logger.output_dir,
+                            self.env.render(
+                                save_gif=self.save_gif,
+                                path = self.logger.output_dir,
                                 epoch_count=epoch,
                                 ep_rew=ep_ret_ls,
                             )
 
                     ep_ret_ls = []
                     stat_buff.reset()
-                    if not env.epoch_end:
+                    if not self.env.epoch_end:
                         # Reset detector position and episode tracking
                         hidden = self.ac.reset_hidden()
-                        o, ep_ret, ep_len, a = env.reset(), 0, 0, -1
+                        o, ep_ret, ep_len, a = self.env.reset(), 0, 0, -1
                     else:
                         # Sample new environment parameters, log epoch results
-                        oob += env.oob_count
-                        logger.store(DoneCount=done_count, OutOfBound=oob)
+                        oob += self.env.oob_count
+                        self.logger.store(DoneCount=done_count, OutOfBound=oob)
                         done_count = 0
                         oob = 0
-                        o, ep_ret, ep_len, a = env.reset(), 0, 0, -1
+                        o, ep_ret, ep_len, a = self.env.reset(), 0, 0, -1
 
                     stat_buff.update(o[0])
 
             # Save model
-            if (epoch % save_freq == 0) or (epoch == epochs - 1):
-                logger.save_state({}, None)
+            if (epoch % self.save_freq == 0) or (epoch == self.epochs - 1):
+                self.logger.save_state({}, None)
                 pass
 
             # Reduce localization module training iterations after 100 epochs to speed up training
@@ -516,14 +528,14 @@ class PPO:
             # Perform PPO update!
             # DEBUG - Remove
             try:
-                self.update(env, bp_args)
+                self.update(self.env, self.bp_args)
             except:
                 print("ERROR IN UPDATE!")
 
-            if tuning:
+            if self.tuning:
                 self.fitness = self.calculate_fitness(
-                    logger.epoch_dict["EpLen"], logger.epoch_dict["LossPi"], logger.epoch_dict["LossV"], 
-                    logger.epoch_dict["LossModel"], logger.epoch_dict["Entropy"], logger.epoch_dict["DoneCount"]
+                    self.logger.epoch_dict["EpLen"], self.logger.epoch_dict["LossPi"], self.logger.epoch_dict["LossV"], 
+                    self.logger.epoch_dict["LossModel"], self.logger.epoch_dict["Entropy"], self.logger.epoch_dict["DoneCount"]
                 )
                 #yield {'fitness': self.fitness} # This sends the score to Ray Tune. TODO Unable to return a generator in init
             else:
@@ -532,7 +544,7 @@ class PPO:
                 self.logger.log_tabular("EpRet", with_min_and_max=True)
                 self.logger.log_tabular("EpLen", average_only=True)
                 self.logger.log_tabular("VVals", with_min_and_max=True)
-                self.logger.log_tabular("TotalEnvInteracts", (epoch + 1) * steps_per_epoch)
+                self.logger.log_tabular("TotalEnvInteracts", (epoch + 1) * self.steps_per_epoch)
                 self.logger.log_tabular("LossPi", average_only=True)
                 self.logger.log_tabular("LossV", average_only=True)
                 self.logger.log_tabular("LossModel", average_only=True)
