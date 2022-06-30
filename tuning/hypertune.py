@@ -207,11 +207,12 @@ def objective(config, checkpoint_dir=None):
         save_gif=config['save_gif'],
         tuning=config['tuning']
     )
+    result = model.train()
 
     # Reset stdout
     sys.stdout = stdout_save
 
-    tune.report(fitness=model.fitness)
+    tune.report(fitness=result)
 
 
 def main(args: list = None):
@@ -242,7 +243,7 @@ def main(args: list = None):
         objective, 
         config=search_space, 
         scheduler=scheduler, 
-        checkpoint_freq=1, 
+        #checkpoint_freq=1, 
         num_samples=10,
         )
 

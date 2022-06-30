@@ -11,6 +11,8 @@ import torch.nn.functional as F
 import time
 from io import StringIO 
 import sys
+from ray import tune
+import os
 try:
     import core
 except:
@@ -355,12 +357,13 @@ class PPO:
         self.max_ep_len = max_ep_len
         self.save_freq = save_freq
         self.render = render
-        self.save_gif_freq = save_gif_freq
         self.save_gif = save_gif
         self.tuning = tuning
-        
+
         # Set Pytorch random seed
         torch.manual_seed(seed)
+        if self.tuning:
+            torch.set_num_threads(1)  # Avoids contention with ray       
 
         # Instantiate environment
         self.env = env
@@ -396,7 +399,7 @@ class PPO:
         self.buf = PPOBuffer(
             obs_dim=obs_dim, max_size=steps_per_epoch, gamma=gamma, lam=lam,
         )
-        save_gif_freq = epochs // 3
+        self.save_gif_freq = epochs // 3
 
         # Set up optimizers and learning rate decay for policy and localization module
         self.pi_optimizer = Adam(self.ac.pi.parameters(), lr=pi_lr)
@@ -526,18 +529,14 @@ class PPO:
                 reduce_v_iters = False
 
             # Perform PPO update!
-            # DEBUG - Remove
-            try:
-                self.update(self.env, self.bp_args)
-            except:
-                print("ERROR IN UPDATE!")
+            self.update(self.env, self.bp_args)
 
             if self.tuning:
                 self.fitness = self.calculate_fitness(
                     self.logger.epoch_dict["EpLen"], self.logger.epoch_dict["LossPi"], self.logger.epoch_dict["LossV"], 
                     self.logger.epoch_dict["LossModel"], self.logger.epoch_dict["Entropy"], self.logger.epoch_dict["DoneCount"]
                 )
-                #yield {'fitness': self.fitness} # This sends the score to Ray Tune. TODO Unable to return a generator in init
+                tune.report(fitness= self.fitness) # Report back to Ray
             else:
                 # Log info about epoch
                 self.logger.log_tabular("Epoch", epoch)
@@ -557,6 +556,8 @@ class PPO:
                 self.logger.log_tabular("StopIter", average_only=True)
                 self.logger.log_tabular("Time", time.time() - start_time)
                 self.logger.dump_tabular()
+        
+        return self.fitness
 
     def calculate_fitness(self, EpLen, LossPi, LossV, LossModel, Entropy, DoneCount):
         return np.sum([1-np.mean(EpLen), 1-LossPi[-1], 1-LossV[-1], 1-LossModel[-1], DoneCount[-1]]) # TODO make a better fitness function; if entropy drops early, convergance likely to a bad policy
