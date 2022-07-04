@@ -1,0 +1,37 @@
+name: radiation_ppo
+channels:
+  - pytorch
+  - conda-forge
+dependencies:
+  - python=3.9
+  - pytorch=1.12
+
+  # For the aws cluster
+  - smart_open
+  - boto3
+
+  # For the google cluster
+  - google-api-python-client
+  - gcsfs
+
+  # Build dependencies for visilibity
+  - swig
+  - clang_osx-arm64
+  - clangxx_osx-arm64
+
+  # Helpful utilities for development
+  - tensorboard
+  - psutil
+  - gputil
+  - glances
+  - black
+
+  # Dependencies for pip installs
+  - pip
+  - git
+  # https://docs.ray.io/en/master/ray-overview/installation.html#m1-mac-apple-silicon-support
+  - grpcio=1.43.0
+  - pip:
+      - ray[default,rllib,tune,air]
+      - visilibity @ git+https://github.com/peproctor/PyVisiLibity.git@c76020079110231f882f38f61b3ab25d01de21f0
+      - gym_rad_search @ git+https://github.com/ConnorBaker/gym_rad_search.git@59e854af8421d9034aa3103b115c92c4b8144cde
