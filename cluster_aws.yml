@@ -39,7 +39,7 @@ available_node_types:
       UserData: |
         #!/bin/bash
         USER_NAME=ec2-user
-        NVME_PATH=/dev/nvme2n1
+        NVME_PATH=/dev/nvme1n1
         cd /home
         sudo mkfs -t ext4 $NVME_PATH
         sudo mv $USER_NAME tmp
