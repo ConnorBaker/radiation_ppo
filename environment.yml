@@ -1,16 +1,35 @@
-name: ppo_rad
+name: ray
 channels:
-  - numba
   - pytorch
   - conda-forge
 dependencies:
-  - python=3.10
-  - pytorch=1.11
-  - scipy
-  - gym
-  - numba
-  - black
+  - python=3.9
+  - pytorch=1.12=py3.9_cpu_0
+
+  # For the aws cluster
+  - smart_open
+  - boto3
+
+  # For the google cluster
+  - google-api-python-client
+  - gcsfs
+
+  # Build dependencies for visilibity
   - swig
+  - gcc_linux-64
+  - gxx_linux-64
+
+  # Helpful utilities for development
+  - tensorboard
+  - psutil
+  - gputil
+  - glances
+  - black
+
+  # Dependencies for pip installs
   - pip
+  - git
   - pip:
-      - -e ./gym_rad_search
+      - ray[default,rllib,tune,air] @ https://s3-us-west-2.amazonaws.com/ray-wheels/master/010a3566e68fd066cecbb88328e720dde3f1b059/ray-3.0.0.dev0-cp39-cp39-manylinux2014_x86_64.whl
+      - visilibity @ git+https://github.com/peproctor/PyVisiLibity.git@c76020079110231f882f38f61b3ab25d01de21f0
+      - gym_rad_search @ git+https://github.com/ConnorBaker/gym_rad_search.git@59e854af8421d9034aa3103b115c92c4b8144cde

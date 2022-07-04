@@ -1,0 +1,82 @@
+cluster_name: gcp-cluster
+
+max_workers: 15
+# Agressively kill idle nodes
+idle_timeout_minutes: 2
+# Scales up by upscaling_speed*current number of nodes.
+# With the default of 1.0, the cluster doubles every time
+# it needs to scale. We use 2.0 so it quadruples (helpful for initial loading).
+upscaling_speed: 2.0
+
+provider:
+  type: gcp
+  region: us-west4
+  availability_zone: us-west4-a
+  # Note: had to login with gcloud after creating
+  # the service account and downloading the JSON
+  # auth key. Then was able to create the cluster.
+  # Before that, it warned that service account was unable to create
+  # a project without a parent.
+  project_id: null
+  cache_stopped_nodes: false
+
+# How Ray will authenticate with newly launched nodes.
+auth:
+  ssh_user: ubuntu
+
+available_node_types:
+  # Resource labels can't have dots in them
+  ray_head_default:
+    node_config:
+      machineType: e2-highcpu-16
+      disks:
+        - boot: true
+          autoDelete: true
+          type: PERSISTENT
+          initializeParams:
+            diskSizeGb: 50
+            # See https://cloud.google.com/compute/docs/images for more images
+            # sourceImage: projects/deeplearning-platform-release/global/images/family/common-cpu
+            sourceImage: projects/ubuntu-os-cloud/global/images/family/ubuntu-2204-lts
+    resources: { "CPU": 16 }
+  ray_worker_default:
+    node_config:
+      machineType: e2-highcpu-16
+      disks:
+        - boot: true
+          autoDelete: true
+          type: PERSISTENT
+          initializeParams:
+            diskSizeGb: 50
+            # See https://cloud.google.com/compute/docs/images for more images
+            sourceImage: projects/ubuntu-os-cloud/global/images/family/ubuntu-2204-lts
+      scheduling:
+        - preemptible: true
+    resources: { "CPU": 16 }
+
+# For some reason, unlike in the cluster_aws.yml setup, we need to declare this explicitly.
+# head_node_type: ray.head.default
+# worker_default_node_type: ray_worker_default
+
+setup_commands:
+  # Let's make a ramdisk!
+  # - |
+  #   cd /home && \
+  #     sudo mv $USER tmp && \
+  #     sudo mkdir $USER && \
+  #     sudo mount -t tmpfs tmpfs $USER && \
+  #     sudo chmod 700 $USER && \
+  #     sudo cp -a tmp/. $USER && \
+  #     sudo rm -rf tmp
+  # Install mamba
+  - curl -LO https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh
+  - bash Mambaforge-Linux-x86_64.sh -b
+  - rm Mambaforge-Linux-x86_64.sh
+  # Ray looks for conda specifically, so we use a symbolic link to get it to use mamba
+  - sudo ln -s ~/mambaforge/bin/mamba /usr/local/bin/conda
+  - sudo ln -s ~/mambaforge/bin/mamba /usr/local/bin/mamba
+  - mamba init
+  - mamba config --set auto_activate_base True
+  # Install our python and ray nightly
+  - mamba install --yes conda-forge::{python=3.9,pip}
+  - pip install 'ray[all] @ https://s3-us-west-2.amazonaws.com/ray-wheels/master/010a3566e68fd066cecbb88328e720dde3f1b059/ray-3.0.0.dev0-cp39-cp39-manylinux2014_x86_64.whl'

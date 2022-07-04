@@ -1,33 +1,63 @@
-# Proximal Policy Optimization for Radiation Source Search
+# Environment setup
 
-RAD-A2C architecture and proximal policy optimization (PPO) for radiation source search from our published [paper](https://www.mdpi.com/2673-4362/2/4/29). Base code from OpenAI's [Spinningup](https://github.com/openai/spinningup) repo. Below is a demo of a test episode where the trained deep reinforcement learning agent is controlling a radiation detector to search for a gamma radiation source in a non-convex environment (7 obstructions).
+Ensure micromamba is installed. Set up the environment by running
 
-![Radiation Source Search - Animated gif demo](demo/demo.gif)
+```bash
+micromamba create --file environment.yml --yes
+```
 
-The obstructions (gray rectangles) block line of sight between the detector and gamma source resulting in the detector only measuring background radiation. The left plot shows the detector positions (black triangles) in the environment, the agent's source location prediction (magenta circles), and the gamma source (red star). The middle plot shows the measured gamma radiation intensity at each timestep and the right plot show the cumulative reward that the agent receives from its selected actions during an episode that is used during training to update the neural network weights. The episode terminates if the detector comes within 1.1 m of the gamma source (success) or if the episode length reaches 120 samples (failure).
+Note: be sure to change the `upload_dir` in `policy_inference_after_training.py` to correspond with the cluster being used (i.e., `s3://` for AWS and `gs://` for GCP).
 
-## Installation
+# AWS Cluster
 
-It is recommended to use the Anaconda package manager.
+Create the cluster with
 
-1. After cloning this repository, create a virtual environment with the required packages
-   `conda env create -f environment.yml`.
-   Then activate this environment with `conda activate ppo_rad`.
-   The radiation_ppo code requires [OpenMPI](https://www.open-mpi.org/software/ompi/v4.1/) for parallel processing.
+```bash
+ray up cluster_aws.yml --yes --verbose
+```
 
-## Files
+Allow use of `ray.init("auto")` and get access to the dashboard with
 
-- `/algo`: contains the PPO implementation and neural network architecture
-- `/eval`: contains the scripts for evaluation and rendering of the trained models as well as the test environment generation and the test environments used in our paper. Gradient search and hybrid RID-FIM controller also included.
-- `/gym_rad_search`: contains the radiation source search OpenAI gym environment
-- `/models`: user trained and pretrained models
+```bash
+ray dashboard cluster_aws.yml
+```
 
-## Usage
+Submit jobs to the cluster with
 
-1. Train model with `ppo.py`, see argument help and ppo function for parameter documentation
-   - Model will be saved to directory `/args.env_name`
-   - Plot training results using the `rl_plots.py` in `eval/`. Ex: `python rl_plots --data_dir ../models/pre_train/gru_8_acts/bpf/model_name`
-   - Full training takes at least ~30 hours w/ 10 cores, a printout of metrics will display per epoch if everything is running correctly.
-2. Test the model using `test_policy.py`, any model changes made to `/ppo/core.py` must also be made in `/eval/core.py`
-   - Trained model parameters must be specified by user in the `ac_kwargs` dictionary, line 531 in `test_policy.py`
-   - See argument help for more details
+```bash
+ray job submit --runtime-env-json '{"working_dir":".","conda":"environment.yml","env_vars":{"AWS_ACCESS_KEY_ID":"'$(aws configure get aws_access_key_id)'","AWS_SECRET_ACCESS_KEY":"'$(aws configure get aws_secret_access_key)'"}}' --no-wait --verbose -- python policy_inference_after_training.py
+```
+
+*Note:* Uses the default credentials in `~/.aws`. These credentials are largely used to get saving to S3 working. Requires the `aws` CLI to be installed. (This has only been tested with version 2.)
+
+Shut down the cluster with
+
+```bash
+ray down cluster_aws.yml --yes --verbose
+```
+
+# GCP Cluster
+
+Create the cluster with
+
+```bash
+ray up cluster_gcp.yml --yes --verbose
+```
+
+Allow use of `ray.init("auto")` and get access to the dashboard with
+
+```bash
+ray dashboard cluster_gcp.yml
+```
+
+Submit jobs to the cluster with
+
+```bash
+ray job submit --runtime-env-json '{"working_dir":".","conda":"environment.yml"}' --no-wait --verbose -- python policy_inference_after_training.py
+```
+
+Shut down the cluster with
+
+```bash
+ray down cluster_gcp.yml --yes --verbose
+```

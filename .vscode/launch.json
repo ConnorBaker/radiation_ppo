@@ -5,14 +5,12 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "PPO",
+            "name": "Python: Current File",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/algos/ppo/main.py",
+            "program": "${file}",
             "console": "integratedTerminal",
-            "justMyCode": false,
-            "args": ["--seed", "0", "--exp-name", "exp1", "--epochs", "10"],
-            "cwd": "${workspaceFolder}/algos/ppo"
+            "justMyCode": true
         }
     ]
 }
