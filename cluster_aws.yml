@@ -14,45 +14,94 @@ provider:
   cache_stopped_nodes: false
 
 auth:
-  ssh_user: ec2-user # Username for Amazon Linux 2022
+  # The username for Amazon Linux 2022 is ec2-user.
+  ssh_user: ec2-user
 
 available_node_types:
   ray.head.default:
     node_config:
-      InstanceType: m5n.4xlarge
+      InstanceType: m5dn.2xlarge
+      # We use Amazon Linux 2022 since we don't need GPU acceleration.
+      # We can't use the minimal image however, since Ray needs rsync, and it
+      # isn't included in the minimal image.
+      # The image was find via:
       # aws ec2 describe-images --filters "Name=name,Values=al2022-ami-2022.0.202205*kernel-5.15*"
-      ImageId: ami-04a0a1bfbe6cb2189 # Amazon Linux 2022 -- can't use minimal since we need rsync
+      ImageId: ami-04a0a1bfbe6cb2189
+      # We use an NVME drive for everything so the install disk can stay small.
+      # The Amazon Linux 2022 AMI uses /dev/xvda for the EBS disk.
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 8
+            VolumeType: gp3
+      # UserData is run as root, so be sure to change the name
+      # of the user account here as appropriate!
+      UserData: |
+        #!/bin/bash
+        USER_NAME=ec2-user
+        NVME_PATH=/dev/nvme2n1
+        cd /home
+        sudo mkfs -t ext4 $NVME_PATH
+        sudo mv $USER_NAME tmp
+        sudo mkdir $USER_NAME
+        sudo mount $NVME_PATH $USER_NAME
+        sudo chmod 700 $USER_NAME
+        sudo cp -a tmp/. $USER_NAME
+        sudo rm -rf tmp
     resources: {}
-  # Multiple types of nodes can be specified by following
-  # https://github.com/ray-project/ray/blob/master/python/ray/autoscaler/aws/example-multi-node-type.yaml
   ray.worker.default:
     node_config:
       # Pricing is consistent over the last three months for us-east-2.
       # No need to specify particular availability zones.
       InstanceType: c6a.4xlarge
-      ImageId: ami-04a0a1bfbe6cb2189 # Amazon Linux 2022 -- can't use minimal since we need rsync
+      ImageId: ami-04a0a1bfbe6cb2189
+      # We use ramdisk for everything so the install disk can stay small
+      # The Amazon Linux 2022 AMI uses /dev/xvda for the EBS disk.
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 8
+            VolumeType: gp3
       InstanceMarketOptions:
         MarketType: spot
+      # Let's make a ramdisk! Our models don't use much memory,
+      # so we leave 75% of the RAM to storage.
+      # UserData is run as root, so be sure to change the name
+      # of the user account here as appropriate!
+      UserData: |
+        #!/bin/bash
+        USER_NAME=ec2-user
+        cd /home
+        sudo mv $USER_NAME tmp
+        sudo mkdir $USER_NAME
+        sudo mount -o size=75% -t tmpfs none $USER_NAME
+        sudo chmod 700 $USER_NAME
+        sudo cp -a tmp/. $USER_NAME
+        sudo rm -rf tmp
     resources: {}
 
+# Unfortunately, this setup breaks ray's expectation that setup commands are
+# idempotent. If this is run more than once, it causes and error because the
+# directory already exists.
+# TODO: Wrap these commands in conditionals to check whether to install.
+# Alternatively, write a bash wrapper for micromamba and avoid all of this.
+# Ray only needs to be able to lists the environments and create a new
+# environment, so the bash wrapper only needs to handle those two invoations.
 setup_commands:
-  # Let's make a ramdisk!
-  - |
-    cd /home && \
-      sudo mv $USER tmp && \
-      sudo mkdir $USER && \
-      sudo mount -t tmpfs tmpfs $USER && \
-      sudo chmod 700 $USER && \
-      sudo cp -a tmp/. $USER && \
-      sudo rm -rf tmp
   # Install mamba
-  - curl -LO https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh
-  - bash Mambaforge-Linux-x86_64.sh -b
-  - rm Mambaforge-Linux-x86_64.sh
-  # Ray looks for conda specifically, so we use a symbolic link to get it to use mamba
-  - sudo ln -s ~/mambaforge/bin/mamba /usr/local/bin/conda
-  - sudo ln -s ~/mambaforge/bin/mamba /usr/local/bin/mamba
-  - mamba init
+  - |
+    curl -LO https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh && \
+      bash Mambaforge-Linux-x86_64.sh -b && \
+      rm Mambaforge-Linux-x86_64.sh
+  # Ray looks for conda specifically, so we use a symbolic link to get it to
+  # use mamba. We don't put mambaforge on the path directly because we want to
+  # hide the actual conda executable from Ray because it is much slower than
+  # mamba.
+  - |
+    sudo ln -s ~/mambaforge/bin/mamba /usr/local/bin/conda && \
+      sudo ln -s ~/mambaforge/bin/mamba /usr/local/bin/mamba && \
+      mamba init
+  # Set mamba to automatically activate the base environment
   - mamba config --set auto_activate_base True
   # Install our python and ray nightly
   - mamba install --yes conda-forge::{python=3.9,pip}

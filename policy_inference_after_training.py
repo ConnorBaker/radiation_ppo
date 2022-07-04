@@ -70,19 +70,17 @@ def train() -> ExperimentAnalysis:
         verbose=0,
         # Hyperparameters
         config={
-            # "num_envs_per_worker": tune.grid_search(range(1, 5)),
-            # "rollout_fragment_length": tune.grid_search([i * 128 for i in range(1, 9)]),
             "num_envs_per_worker": tune.grid_search(range(1, 9)),
             "rollout_fragment_length": tune.grid_search([2 ** (7+i) for i in range(1, 21)]),
         },
         checkpoint_freq=300,
         checkpoint_at_end=True,
         max_failures=-1,
-        sync_config=tune.SyncConfig(
-            upload_dir="gs://ray-blarg-test-bucket",
+        # sync_config=tune.SyncConfig(
+            # upload_dir="gs://ray-blarg-test-bucket",
             # Custom sync command for s3-like endpoints
             # syncer="aws s3 sync {source} {target} --endpoint-url https://b10fa25202b183e3807763a0b0320d47.r2.cloudflarestorage.com",  
-        ),
+        # ),
         resume="AUTO",
     )
 

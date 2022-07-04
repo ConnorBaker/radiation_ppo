@@ -1,12 +1,12 @@
 # Environment setup
 
-Ensure micromamba is installed. Set up the environment by running
+Ensure `micromamba` is installed. Set up the environment by running
 
 ```bash
 micromamba create --file environment.yml --yes
 ```
 
-Note: be sure to change the `upload_dir` in `policy_inference_after_training.py` to correspond with the cluster being used (i.e., `s3://` for AWS and `gs://` for GCP).
+Note: be sure to change the `upload_dir` in `policy_inference_after_training.py` to correspond with the cluster used (i.e., `s3://` for AWS and `gs://` for GCP).
 
 # AWS Cluster
 
@@ -28,7 +28,13 @@ Submit jobs to the cluster with
 ray job submit --runtime-env-json '{"working_dir":".","conda":"environment.yml","env_vars":{"AWS_ACCESS_KEY_ID":"'$(aws configure get aws_access_key_id)'","AWS_SECRET_ACCESS_KEY":"'$(aws configure get aws_secret_access_key)'"}}' --no-wait --verbose -- python policy_inference_after_training.py
 ```
 
-*Note:* Uses the default credentials in `~/.aws`. These credentials are largely used to get saving to S3 working. Requires the `aws` CLI to be installed. (This has only been tested with version 2.)
+*Note:* Uses the default credentials in `~/.aws`. We use these credentials are to save to S3. Requires the `aws` CLI to be installed. (This has only been tested with version 2 of the AWS CLI.)
+
+If you're not using the S3 bucket, you can do
+
+```bash
+ray job submit --runtime-env-json '{"working_dir":".","conda":"environment.yml"}' --no-wait --verbose -- python policy_inference_after_training.py
+```
 
 Shut down the cluster with
 
