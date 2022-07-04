@@ -1,4 +1,4 @@
-name: ray
+name: radiation_ppo
 channels:
   - pytorch
   - conda-forge
