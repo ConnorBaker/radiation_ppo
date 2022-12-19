@@ -265,7 +265,7 @@ class RadSearch(gym.Env):
             self.sp_dist: float = self.world.shortest_path(  # type: ignore
                 self.source, self.detector, self.vis_graph, EPSILON
             ).length()
-            self.euc_dist: float = dist_sq_p(self.det_coords, self.src_coords)
+            self.euc_dist: float = dist_p(self.det_coords, self.src_coords)
             self.intersect = self.is_intersect()
             meas: float = self.np_random.poisson(
                 self.bkg_intensity
@@ -293,7 +293,7 @@ class RadSearch(gym.Env):
                 )
             else:
                 self.sp_dist = self.prev_det_dist
-                self.euc_dist = dist_sq_p(self.det_coords, self.src_coords)
+                self.euc_dist = dist_p(self.det_coords, self.src_coords)
                 self.intersect = self.is_intersect()
                 meas: float = self.np_random.poisson(
                     self.bkg_intensity
@@ -641,8 +641,11 @@ class RadSearch(gym.Env):
         if sum(x_check) >= 4:
             for ii in [0, 2, 4, 6]:
                 if x_check[ii - 1] and x_check[ii + 1]:
-                    dists[ii - 1 : ii + 2] = [1.0, 1.0, 1.0]
+                    dists[ii] = 1.0
+                    dists[ii-1] = 1.0
+                    dists[ii+1] = 1.0
 
+        assert len(dists) == A_SIZE
         return dists
 
     def render(
