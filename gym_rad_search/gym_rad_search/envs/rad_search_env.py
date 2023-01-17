@@ -405,6 +405,7 @@ class RadSearch(gym.Env):
                 ).length()
                 agent.euc_dist = dist_p(agent.det_coords, self.src_coords)
                 agent.intersect = self.is_intersect(agent)
+
                 meas: float = self.np_random.poisson(
                     self.bkg_intensity
                     if agent.intersect
@@ -970,6 +971,7 @@ class RadSearch(gym.Env):
         # i.e. if one outside the poly then
         if sum(x_check) >= 4:
             for ii in [0, 2, 4, 6]:
+
                 if x_check[ii - 1] == True and x_check[ii + 1] == True:
                     dists[ii] = 1.0
                     dists[ii-1] = 1.0
@@ -977,6 +979,7 @@ class RadSearch(gym.Env):
                     #dists[ii - 1 : ii + 2] = [1.0, 1.0, 1.0]  # This causes there to be 11 elements when there should only be 8
                     
         assert len(dists) == DETECTABLE_DIRECTIONS  # Sanity check - if this is wrong it will mess up the step return shape of "state" and make training fail
+
         return dists
 
     def render(
